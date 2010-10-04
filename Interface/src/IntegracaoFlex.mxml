@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute">
+	
+	<mx:Script>
+		<![CDATA[
+			import mapeamento.Person;
+			import mx.collections.ArrayCollection;
+			import mx.rpc.remoting.mxml.RemoteObject;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.events.CloseEvent;
+			
+			import mx.controls.Alert;
+			
+			import mapeamento.Person;
+			
+			/**
+			 * Prepara um objeto remoto para executar um método no asp.net.
+			**/
+			
+			private var count:int = 1;
+			private var personToRemove:Person;
+			
+			private function preparaRemoteObj(fncFalha:Function, fncOk:Function = null):RemoteObject{
+				//Instancia um objeto remoto pegando as configurações do nosso arquivo services-config.xml
+				var remoteObj:RemoteObject = new RemoteObject("fluorine"); //<destination id="fluorine">
+				remoteObj.source = "IntegracaoFlex.Person"; // Namespace.NomeDaClasse no ASP.net
+				remoteObj.showBusyCursor = true; // Exibe o relogio no lugar do cursor durante a requisição
+				
+				//Adiciona o evento falha na lista de eventos do ojeto remoto
+				remoteObj.addEventListener(FaultEvent.FAULT, fncFalha); 
+				
+				//Verifica se é null porque nem sempre um método vai retornar algum valor.
+				if (fncOk != null)  
+					//Adiciona a funcao passada como parametro neste método,
+					//ela é responsável por tratar o retorno do método asp.net
+					remoteObj.addEventListener(ResultEvent.RESULT, fncOk);  
+																		   
+				
+				return remoteObj; //retorna o objeto remoto configurado.
+			}
+			
+			/**
+			 * Tratamento de erro do método executado no asp.net.
+			**/
+			private function rstFalha(evt:FaultEvent):void{
+				Alert.show("Ocorreu o seguinte erro ao tentar executar o método:\n" + 
+				evt.fault.message, "Erro");
+			}			
+			
+			/**
+			 * Tratamento do retorno do método Insere executado no asp.net.
+			**/
+			private function rstSucessoInsere(evt:ResultEvent):void{
+				if (evt.result != null){
+					Alert.show("Método executado com sucesso!\n\n" + 
+					(evt.result as String), "Ok");
+					
+					btnListar_click(new MouseEvent(MouseEvent.CLICK));
+					txtNome.text = "";
+					txtTelefone.text = "";
+				}
+			}
+			
+			/**
+			 * Tratamento do retorno do método Lista executado no asp.net.
+			**/
+			private function rstSucessoLista(evt:ResultEvent):void{
+				if (evt.result != null){
+					grdPessoas.dataProvider = (evt.result as ArrayCollection);
+				}
+			}
+			
+			/**
+			 * Evento click do botão Inserir.
+			**/
+			private function btnInserir_click(evt:MouseEvent):void{
+				if (evt.type == MouseEvent.CLICK){
+					
+					//Configura a Pessoa
+					var pessoa:Person = new Person;
+					pessoa.Id = count;
+					pessoa.Name = txtNome.text;
+					pessoa.Phone = txtTelefone.text;
+					
+					count++;
+					//Executa o método no asp.net
+					var remoteObj:RemoteObject = preparaRemoteObj(rstFalha, rstSucessoInsere);					
+					remoteObj.getOperation("insert").send(pessoa);
+				}
+			}
+			
+			/**
+			 * Evento click do botao Lista
+			**/
+			private function btnListar_click(evt:MouseEvent):void{
+				if (evt.type == MouseEvent.CLICK){
+					
+					//Executa o método no asp.net
+					var remoteObj:RemoteObject = preparaRemoteObj(rstFalha, rstSucessoLista);					
+					remoteObj.getOperation("Lista").send();
+				}
+			}
+			
+			private function removeItem():void
+			{
+				personToRemove = grdPessoas.selectedItem as Person;
+				 Alert.show("Você realmente deseja remover "+personToRemove.Name+"?", "Remover", 3, this, removeItemHandler);
+			}
+			
+			private function removeItemHandler(event:CloseEvent):void
+			{
+				if(event.detail == Alert.YES)
+				{
+					var remoteObj:RemoteObject = preparaRemoteObj(rstFalha, rstSucessoRemove);					
+					remoteObj.getOperation("remove").send(personToRemove);	
+				}	
+			}
+			
+			private function rstSucessoRemove(evt:ResultEvent):void
+			{
+				if(evt.result != null)
+				{
+					Alert.show(evt.result as String,"Ok");
+					btnListar_click(new MouseEvent(MouseEvent.CLICK));
+				}	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Label x="389" y="72" text="Nome"/>
+	<mx:TextInput x="451" y="70" id="txtNome"/>
+	
+	<mx:Label x="389" y="100" text="Telefone"/>
+	<mx:TextInput x="451" y="98" id="txtTelefone"/>
+	
+	<mx:Button x="546" y="128" 
+		label="Inserir" 
+		id="btnInserir" 
+		click="btnInserir_click(event);"/>
+	
+	
+	
+	<mx:Button y="466" right="811"
+		label="Listar"  
+		id="btnListar" 
+		click="btnListar_click(event);"/>
+	
+	<mx:DataGrid y="221" width="489" right="474" id="grdPessoas" height="200">
+		<mx:columns>
+			<mx:DataGridColumn headerText="Id" dataField="Id" width="20"/>
+			<mx:DataGridColumn headerText="Nome" dataField="Name" width="40"/>
+			<mx:DataGridColumn headerText="Telefone" dataField="Phone" width="40"/>
+		</mx:columns>
+	</mx:DataGrid>
+	<mx:Button x="650" y="466" label="Remover" id="btn_remover" click="removeItem();"/>
+	
+	
+</mx:Application>
